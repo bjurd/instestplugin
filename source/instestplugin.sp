@@ -40,8 +40,19 @@ enum struct CUserCmd
 int AFKTicks[MAXPLAYERS + 1];
 CUserCmd StoredCommands[MAXPLAYERS + 1];
 
+ConVar instestplugin_max_afk_time;
+
 public void OnPluginStart()
 {
+	instestplugin_max_afk_time = CreateConVar(
+		"instestplugin_max_afk_time",
+		"600",
+		"How many seconds of AFK before annihilation",
+		FCVAR_ARCHIVE,
+		true, 0.0,
+		false, 0.0
+	);
+
 	LogMessage("OIPOIIffffffffffffffffffffffffuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu");
 }
 
@@ -53,13 +64,11 @@ public void ResetAFK(int Client)
 
 public void OnClientPutInServer(int Client)
 {
-	LogMessage("welcome newfren");
 	ResetAFK(Client);
 }
 
 public void OnClientDisconnect(int Client)
 {
-	LogMessage("bye fren");
 	ResetAFK(Client);
 }
 
@@ -108,6 +117,18 @@ public bool IsAFKTick(CUserCmd Command)
 	return !Moving && !Looking && !Switching;
 }
 
+public void AFKTick(int Client)
+{
+	AFKTicks[Client]++;
+
+	float Time = AFKTicks[Client] * GetTickInterval();
+	if (Time >= instestplugin_max_afk_time.FloatValue)
+	{
+		// Sayonara bitch!
+		KickClient(Client, "You were AFK for %.2f second(s)", Time);
+	}
+}
+
 public Action OnPlayerRunCmd(
 	int Client,
 	int& Buttons,
@@ -140,8 +161,7 @@ public Action OnPlayerRunCmd(
 
 	if (IsPlayerAlive(Client) && IsAFKTick(Command))
 	{
-		AFKTicks[Client]++;
-		LogMessage("your ass is not moving");
+		AFKTick(Client);
 	}
 	else
 	{
