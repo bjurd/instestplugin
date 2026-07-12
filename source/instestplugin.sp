@@ -41,6 +41,7 @@ int AFKTicks[MAXPLAYERS + 1];
 CUserCmd StoredCommands[MAXPLAYERS + 1];
 
 ConVar instestplugin_max_afk_time;
+ConVar instestplugin_respect_viewangles;
 
 public void OnPluginStart()
 {
@@ -51,6 +52,15 @@ public void OnPluginStart()
 		FCVAR_ARCHIVE,
 		true, 0.0,
 		false, 0.0
+	);
+
+	instestplugin_respect_viewangles = CreateConVar(
+		"instestplugin_respect_viewangles",
+		"1",
+		"Whether or not view angle changes should count as not afk",
+		FCVAR_ARCHIVE,
+		true, 0.0,
+		true, 1.0
 	);
 
 	LogMessage("OIPOIIffffffffffffffffffffffffuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu");
@@ -111,8 +121,14 @@ public bool IsAFKTick(CUserCmd Command)
 		(Command.UpMove * Command.UpMove);
 
 	bool Moving = Speed > 0.0 || Command.Buttons != 0 || Command.Impulse != 0;
-	bool Looking = Command.MouseX != 0 || Command.MouseY != 0 || !AnglesEqual(Command.ViewAngles, LastCommand.ViewAngles);
+	bool Looking = Command.MouseX != 0 || Command.MouseY != 0;
 	bool Switching = Command.Weapon != LastCommand.Weapon || Command.Subtype != LastCommand.Subtype;
+
+	if (instestplugin_respect_viewangles.BoolValue)
+	{
+		// To defeat +right'ers
+		Looking = Looking || !AnglesEqual(Command.ViewAngles, LastCommand.ViewAngles);
+	}
 
 	return !Moving && !Looking && !Switching;
 }
