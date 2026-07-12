@@ -40,11 +40,21 @@ enum struct CUserCmd
 int AFKTicks[MAXPLAYERS + 1];
 CUserCmd StoredCommands[MAXPLAYERS + 1];
 
+ConVar instestplugin_activation_percent;
 ConVar instestplugin_max_afk_time;
 ConVar instestplugin_respect_viewangles;
 
 public void OnPluginStart()
 {
+	instestplugin_activation_percent = CreateConVar(
+		"instestplugin_activation_percent",
+		"0",
+		"Percentage of players on the server needed for anti-afk to be active. Range of 0-1.",
+		FCVAR_ARCHIVE,
+		true, 0.0,
+		true, 1.0
+	);
+
 	instestplugin_max_afk_time = CreateConVar(
 		"instestplugin_max_afk_time",
 		"600",
@@ -159,6 +169,18 @@ public Action OnPlayerRunCmd(
 	int Mouse[2]
 )
 {
+	float Activation = instestplugin_activation_percent.FloatValue;
+	if (Activation > 0.0)
+	{
+		int MaxPlayers = GetMaxHumanPlayers();
+		int Players = GetClientCount(true);
+
+		float Percentage = (float)(Players) / (float)(MaxPlayers);
+
+		if (Percentage < Activation)
+			return Plugin_Continue;
+	}
+
 	CUserCmd Command;
 	Command.Client = Client;
 	Command.TickCount = TickCount;
