@@ -37,8 +37,12 @@ enum struct CUserCmd
 	int MouseY;
 }
 
+#define DAMAGE_NO  0
+#define DAMAGE_YES 2
+
 int AFKTicks[MAXPLAYERS + 1];
 CUserCmd StoredCommands[MAXPLAYERS + 1];
+bool GodMode[MAXPLAYERS + 1];
 
 ConVar instestplugin_activation_percent;
 ConVar instestplugin_max_afk_time;
@@ -73,7 +77,74 @@ public void OnPluginStart()
 		true, 1.0
 	);
 
+	RegAdminCmd("sm_god", Command_God, ADMFLAG_GENERIC, "im jesus");
+	RegServerCmd("kickrand", Command_KickRand, "Get the fuc kout!!!!!!!!!!!!!");
+	HookEvent("player_spawn", Event_PlayerSpawn);
+
 	LogMessage("OIPOIIffffffffffffffffffffffffuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu");
+}
+
+public Action Command_KickRand(int Args)
+{
+	int Candidates[MAXPLAYERS];
+	int Count = 0;
+
+	for (int Client = 1; Client <= MaxClients; Client++)
+	{
+		if (IsClientInGame(Client) && !IsFakeClient(Client))
+			Candidates[Count++] = Client;
+	}
+
+	if (Count == 0)
+	{
+		PrintToServer("[SM] No players to kick.");
+		return Plugin_Handled;
+	}
+
+	int Client = Candidates[GetRandomInt(0, Count - 1)];
+	PrintToServer("[SM] Kicking %N.", Client);
+	KickClient(Client, "Get out of my way");
+	return Plugin_Handled;
+}
+
+public Action Command_God(int Client, int Args)
+{
+	if (Client == 0)
+	{
+		ReplyToCommand(Client, "[SM] This command can only be used in-game.");
+		return Plugin_Handled;
+	}
+
+	GodMode[Client] = !GodMode[Client];
+	ApplyGodMode(Client);
+
+	ReplyToCommand(Client, "[SM] God mode %s.", GodMode[Client] ? "enabled" : "disabled");
+	return Plugin_Handled;
+}
+
+public void ApplyGodMode(int Client)
+{
+	if (!IsClientInGame(Client) || !IsPlayerAlive(Client))
+		return;
+
+	SetEntProp(Client, Prop_Data, "m_takedamage", GodMode[Client] ? DAMAGE_NO : DAMAGE_YES);
+}
+
+public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+{
+	int Client = GetClientOfUserId(event.GetInt("userid"));
+	if (Client > 0 && GodMode[Client])
+	{
+		// Spawn resets m_takedamage
+		RequestFrame(Frame_ApplyGodMode, GetClientUserId(Client));
+	}
+}
+
+public void Frame_ApplyGodMode(int UserId)
+{
+	int Client = GetClientOfUserId(UserId);
+	if (Client > 0)
+		ApplyGodMode(Client);
 }
 
 public void ResetAFK(int Client)
@@ -90,6 +161,7 @@ public void OnClientPutInServer(int Client)
 public void OnClientDisconnect(int Client)
 {
 	ResetAFK(Client);
+	GodMode[Client] = false;
 }
 
 public float NormalizeAngle(float Angle)
