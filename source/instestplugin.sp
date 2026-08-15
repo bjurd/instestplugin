@@ -1,4 +1,5 @@
 #include <sourcemod>
+#include <sdkhooks>
 #include <vector>
 
 #pragma semicolon 1
@@ -40,13 +41,19 @@ enum struct CUserCmd
 #define DAMAGE_NO  0
 #define DAMAGE_YES 2
 
+#define COLLISION_GROUP_PLAYER_MOVEMENT 8
+#define CONTENTS_HITBOX 0x40000000
+#define TEAM_SPECTATOR 1
+
 int AFKTicks[MAXPLAYERS + 1];
 CUserCmd StoredCommands[MAXPLAYERS + 1];
 bool GodMode[MAXPLAYERS + 1];
+int MovingPlayer;
 
 ConVar instestplugin_activation_percent;
 ConVar instestplugin_max_afk_time;
 ConVar instestplugin_respect_viewangles;
+ConVar instestplugin_team_nocollide;
 
 public void OnPluginStart()
 {
@@ -77,9 +84,24 @@ public void OnPluginStart()
 		true, 1.0
 	);
 
+	instestplugin_team_nocollide = CreateConVar(
+		"instestplugin_team_nocollide",
+		"1",
+		"Whether or not teammates can walk through each other",
+		FCVAR_ARCHIVE,
+		true, 0.0,
+		true, 1.0
+	);
+
 	RegAdminCmd("sm_god", Command_God, ADMFLAG_GENERIC, "im jesus");
 	RegServerCmd("kickrand", Command_KickRand, "Get the fuc kout!!!!!!!!!!!!!");
 	HookEvent("player_spawn", Event_PlayerSpawn);
+
+	for (int Client = 1; Client <= MaxClients; Client++)
+	{
+		if (IsClientInGame(Client))
+			HookClientCollide(Client);
+	}
 
 	LogMessage("OIPOIIffffffffffffffffffffffffuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu");
 }
@@ -156,12 +178,50 @@ public void ResetAFK(int Client)
 public void OnClientPutInServer(int Client)
 {
 	ResetAFK(Client);
+	HookClientCollide(Client);
+}
+
+public void HookClientCollide(int Client)
+{
+	SDKHook(Client, SDKHook_ShouldCollide, Hook_ShouldCollide);
+}
+
+public bool Hook_ShouldCollide(int Entity, int CollisionGroup, int ContentsMask, bool OriginalResult)
+{
+	if (!instestplugin_team_nocollide.BoolValue)
+		return OriginalResult;
+
+	// Don't cuck bullets
+	if (ContentsMask & CONTENTS_HITBOX)
+		return OriginalResult;
+
+	if (CollisionGroup != COLLISION_GROUP_PLAYER_MOVEMENT)
+		return OriginalResult;
+
+	if (Entity == MovingPlayer)
+		return OriginalResult;
+
+	if (Entity < 1 || Entity > MaxClients || !IsClientInGame(Entity))
+		return OriginalResult;
+
+	if (MovingPlayer < 1 || MovingPlayer > MaxClients || !IsClientInGame(MovingPlayer))
+		return OriginalResult;
+
+	int EntityTeam = GetClientTeam(Entity);
+	int MovingTeam = GetClientTeam(MovingPlayer);
+	if (EntityTeam <= TEAM_SPECTATOR || EntityTeam != MovingTeam)
+		return OriginalResult;
+
+	return false;
 }
 
 public void OnClientDisconnect(int Client)
 {
 	ResetAFK(Client);
 	GodMode[Client] = false;
+
+	if (MovingPlayer == Client)
+		MovingPlayer = 0;
 }
 
 public float NormalizeAngle(float Angle)
@@ -241,6 +301,8 @@ public Action OnPlayerRunCmd(
 	int Mouse[2]
 )
 {
+	MovingPlayer = Client;
+
 	float Activation = instestplugin_activation_percent.FloatValue;
 	if (Activation > 0.0)
 	{
